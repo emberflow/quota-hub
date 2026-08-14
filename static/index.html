@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>额度看板</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <header class="top">
+    <div>
+      <h1>额度看板</h1>
+      <p class="sub">本机只读 · Cursor / Codex / SuperGrok / Antigravity · GitHub 仓库树</p>
+    </div>
+    <div class="top-actions">
+      <span id="updated" class="muted"></span>
+      <button type="button" id="refresh">刷新</button>
+    </div>
+  </header>
+  <nav class="tabs">
+    <button type="button" class="tab active" data-tab="quota">额度</button>
+    <button type="button" class="tab" data-tab="github">GitHub</button>
+  </nav>
+  <main>
+    <section id="panel-quota" class="panel active">
+      <div id="use-first" class="use-first hidden"></div>
+      <div id="cards" class="cards"></div>
+      <section class="block">
+        <h2>每日用量</h2>
+        <p class="hint">柱状图来自看板快照的剩余百分比差值；Codex/Grok 本地会话 token 作参考，不一定等于官方计费。</p>
+        <div id="chart" class="chart"></div>
+        <div id="daily-table"></div>
+      </section>
+      <section class="block">
+        <h2>按模型拆分</h2>
+        <div id="models"></div>
+      </section>
+      <section class="block cli">
+        <h2>终端快查（可选）</h2>
+        <pre>npx -y quota-axi --tui --provider cursor,codex,grok
+npx -y antigravity-usage
+npx -y gh-axi repo list</pre>
+      </section>
+    </section>
+    <section id="panel-github" class="panel">
+      <div class="github-layout">
+        <aside>
+          <h2>仓库</h2>
+          <div id="repos" class="repos"></div>
+        </aside>
+        <div>
+          <h2 id="tree-title">目录树</h2>
+          <p id="tree-status" class="hint">点左侧仓库加载目录。大仓只显示前 4000 项。</p>
+          <div id="tree" class="tree"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script src="/static/app.js"></script>
+</body>
+</html>
