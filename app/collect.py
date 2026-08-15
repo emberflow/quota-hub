@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from .antigravity_api import collect_antigravity
 from .axi import collect_codex
+from .charts import build_daily_charts
 from .cursor_api import collect_cursor
 from .grok_api import collect_grok
 from .logs import local_daily
@@ -58,6 +59,8 @@ def collect_all() -> dict:
                         "window": w.label,
                         "percentRemaining": w.percent_remaining,
                         "remainingLabel": w.remaining_label,
+                        "urgency": w.urgency,
+                        "hoursUntilReset": w.hours_until_reset,
                     }
                 )
     try:
@@ -65,7 +68,8 @@ def collect_all() -> dict:
     except Exception:
         pass
 
-    use_first.sort(key=lambda x: -(x.get("percentRemaining") or 0))
+    # Highest leftover-per-hour first: those are the windows that expire soon with unused quota.
+    use_first.sort(key=lambda x: -(x.get("urgency") or 0))
     ranked = []
     for p in providers:
         for w in p.windows:
@@ -91,4 +95,5 @@ def collect_all() -> dict:
         "ranked": ranked[:12],
         "dailySnapshots": daily_deltas(14),
         "dailyLogs": local_daily(14),
+        "dailyCharts": build_daily_charts(14),
     }

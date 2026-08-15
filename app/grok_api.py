@@ -248,7 +248,7 @@ def collect_grok() -> Provider:
         return p
     token = entry.get("key")
     last_err = ""
-    if token:
+    if token and not _expired(entry):
         try:
             parsed = parse_credits(_grpc_call(token))
             return _ok(p, parsed)

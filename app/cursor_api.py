@@ -5,6 +5,8 @@ import os
 import sqlite3
 import urllib.error
 import urllib.request
+from collections import defaultdict
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -177,3 +179,69 @@ def collect_cursor() -> Provider:
         except Exception:
             pass
     return p
+
+
+def collect_cursor_daily(days: int = 14) -> list[dict[str, Any]]:
+    """Per-local-day included usage value from Cursor event log."""
+    token = _access_token()
+    if not token:
+        return []
+    try:
+        me = _request(token, "/api/auth/me")
+    except Exception:
+        return []
+    user_id = me.get("id")
+    if not user_id:
+        return []
+    end = datetime.now(timezone.utc)
+    start = end - timedelta(days=days)
+    buckets: dict[str, dict[str, float]] = defaultdict(lambda: {"cents": 0.0, "events": 0})
+    for page in range(1, 8):
+        try:
+            chunk = _request(
+                token,
+                "/api/dashboard/get-filtered-usage-events",
+                "POST",
+                {
+                    "teamId": 0,
+                    "startDate": str(int(start.timestamp() * 1000)),
+                    "endDate": str(int(end.timestamp() * 1000)),
+                    "userId": user_id,
+                    "page": page,
+                    "pageSize": 200,
+                },
+            )
+        except Exception:
+            break
+        rows = chunk.get("usageEventsDisplay") or []
+        if not rows:
+            break
+        for ev in rows:
+            ts = ev.get("timestamp")
+            if ts is None:
+                continue
+            try:
+                n = float(ts)
+                if n > 1e12:
+                    n = n / 1000.0
+                day = datetime.fromtimestamp(n, tz=timezone.utc).astimezone().date().isoformat()
+            except (TypeError, ValueError, OSError):
+                continue
+            tu = ev.get("tokenUsage") or {}
+            cents = float(tu.get("totalCents") or ev.get("chargedCents") or 0)
+            buckets[day]["cents"] += cents
+            buckets[day]["events"] += 1
+        total = int(chunk.get("totalUsageEventsCount") or 0)
+        if page * 200 >= total or len(rows) < 200:
+            break
+    out = []
+    for day in sorted(buckets):
+        b = buckets[day]
+        out.append(
+            {
+                "date": day,
+                "usd": round(b["cents"] / 100.0, 4),
+                "events": int(b["events"]),
+            }
+        )
+    return out

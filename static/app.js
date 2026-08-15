@@ -39,13 +39,14 @@ function renderProvider(p) {
       </div>`;
     })
     .join("");
-  const err =
-    p.status !== "fresh"
-      ? `<div class="status">${escapeHtml(p.error || p.status)}
+  const ok = p.status === "fresh" || p.status === "stale";
+  const err = !ok
+    ? `<div class="status">${escapeHtml(p.error || p.status)}
           ${p.remedy ? `<div>${escapeHtml(p.remedy)}</div>` : ""}
           ${p.officialUrl ? `<a href="${p.officialUrl}" target="_blank" rel="noreferrer">官方页面</a>` : ""}
         </div>`
-      : `<div class="status">${escapeHtml(p.source || "")}
+    : `<div class="status">${escapeHtml(p.source || "")}
+          ${p.status === "stale" && p.error ? ` · ${escapeHtml(p.error)}` : ""}
           ${p.officialUrl ? ` · <a href="${p.officialUrl}" target="_blank" rel="noreferrer">官方页面</a>` : ""}
         </div>`;
   return `<article class="card">
@@ -98,48 +99,87 @@ function renderModels(providers) {
   host.innerHTML = chunks.join("") || "<p class='muted'>这一周期还没有按模型明细（Antigravity 未登录时常见）。</p>";
 }
 
-function renderDaily(snapshots, logs) {
-  const byDate = {};
-  for (const row of snapshots || []) {
-    if (row.usedPercent == null) continue;
-    byDate[row.date] = (byDate[row.date] || 0) + row.usedPercent;
+function renderDaily(charts, snapshots, logs) {
+  dailyCharts = charts || [];
+  if (!dailyCharts.some((c) => c.id === selectedChart)) {
+    selectedChart = (dailyCharts[0] && dailyCharts[0].id) || "cursor";
   }
-  const dates = Object.keys(byDate).sort();
-  const max = Math.max(1, ...dates.map((d) => byDate[d]));
-  $("chart").innerHTML = dates
-    .slice(-14)
+  const sw = $("chart-switch");
+  sw.innerHTML = dailyCharts
+    .map(
+      (c) =>
+        `<button type="button" data-id="${escapeAttr(c.id)}" class="${c.id === selectedChart ? "active" : ""}">${escapeHtml(c.label)}</button>`
+    )
+    .join("");
+  sw.querySelectorAll("button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      selectedChart = btn.dataset.id;
+      renderDaily(dailyCharts, lastSnapshots, lastLogs);
+    });
+  });
+  const series = dailyCharts.find((c) => c.id === selectedChart) || dailyCharts[0];
+  if (!series) {
+    $("chart").innerHTML = "";
+    $("daily-table").innerHTML = "";
+    return;
+  }
+  $("chart-caption").textContent = `${series.label} · ${series.unitLabel} · ${series.source}`;
+  const days = series.days || [];
+  const max = Math.max(0.0001, ...days.map((d) => d.value || 0));
+  $("chart").innerHTML = days
     .map((d) => {
-      const h = Math.round((byDate[d] / max) * 110);
-      return `<div class="col"><b style="height:${h}px"></b><span>${d.slice(5)}</span></div>`;
+      const v = d.value || 0;
+      const h = Math.max(2, Math.round((v / max) * 130));
+      const label = formatMd(d.date);
+      const shown = formatValue(v, series.unit);
+      const empty = v <= 0 ? "empty" : "";
+      return `<div class="col ${empty}"><em>${v > 0 ? shown : ""}</em><b style="height:${h}px"></b><span>${label}</span></div>`;
     })
     .join("");
 
-  const snapRows = (snapshots || [])
-    .filter((r) => r.usedPercent != null)
-    .slice(0, 40)
-    .map(
-      (r) =>
-        `<tr><td>${r.date}</td><td>${r.provider}</td><td>${r.windowId}</td><td>${r.usedPercent}%</td><td class="muted">快照差值</td></tr>`
-    );
-  const logRows = (logs || []).slice(0, 40).map((r) => {
-    const tok = (r.tokensIn || 0) + (r.tokensOut || 0);
-    return `<tr><td>${r.date}</td><td>${r.provider}</td><td>${r.windowId}</td><td>${tok}</td><td class="muted">${r.source}</td></tr>`;
-  });
+  const tableRows = days
+    .map((d) => {
+      return `<tr><td>${formatMd(d.date)}</td><td>${escapeHtml(series.label)}</td><td>${formatValue(d.value || 0, series.unit)}</td><td class="muted">${escapeHtml(series.source)}</td></tr>`;
+    })
+    .join("");
   $("daily-table").innerHTML = `<table>
-    <thead><tr><th>日期</th><th>产品</th><th>窗口 / 模型</th><th>用量</th><th>来源</th></tr></thead>
-    <tbody>${snapRows.join("")}${logRows.join("") || ""}</tbody>
+    <thead><tr><th>日期</th><th>产品</th><th>用量</th><th>来源</th></tr></thead>
+    <tbody>${tableRows}</tbody>
   </table>`;
 }
+
+function formatMd(iso) {
+  if (!iso || iso.length < 10) return iso || "";
+  const m = Number(iso.slice(5, 7));
+  const d = iso.slice(8, 10);
+  return `${m}.${d}`;
+}
+
+function formatValue(v, unit) {
+  if (unit === "usd") return "$" + (Math.round(v * 100) / 100).toFixed(2);
+  if (unit === "percent") return Math.round(v * 10) / 10 + "%";
+  if (v >= 1000000) return (v / 1000000).toFixed(1) + "M";
+  if (v >= 1000) return (v / 1000).toFixed(1) + "k";
+  return String(Math.round(v));
+}
+
+let dailyCharts = [];
+let selectedChart = "cursor";
+let lastSnapshots = [];
+let lastLogs = [];
 
 async function loadQuota() {
   $("updated").textContent = "读取中…";
   try {
     const res = await fetch("/api/quota");
+    if (!res.ok) throw new Error("HTTP " + res.status);
     const data = await res.json();
     $("cards").innerHTML = (data.providers || []).map(renderProvider).join("");
     renderUseFirst(data.useFirst);
     renderModels(data.providers || []);
-    renderDaily(data.dailySnapshots, data.dailyLogs);
+    lastSnapshots = data.dailySnapshots || [];
+    lastLogs = data.dailyLogs || [];
+    renderDaily(data.dailyCharts || [], lastSnapshots, lastLogs);
     $("updated").textContent = "更新于 " + new Date().toLocaleString();
   } catch (err) {
     $("updated").textContent = "刷新失败";
@@ -183,21 +223,25 @@ async function loadTree(repo, ref) {
   $("tree-title").textContent = repo;
   $("tree-status").textContent = "加载目录…";
   $("tree").textContent = "";
-  const qs = new URLSearchParams({ repo, ref: ref || "HEAD" });
-  const res = await fetch("/api/github/tree?" + qs.toString());
-  const data = await res.json();
-  if (!data.ok) {
-    $("tree-status").textContent = data.error || "失败";
-    return;
+  try {
+    const qs = new URLSearchParams({ repo, ref: ref || "HEAD" });
+    const res = await fetch("/api/github/tree?" + qs.toString());
+    const data = await res.json();
+    if (!data.ok) {
+      $("tree-status").textContent = data.error || "失败";
+      return;
+    }
+    $("tree-status").textContent = data.truncated ? "已截断（条目过多）" : `${data.entries.length} 项`;
+    $("tree").innerHTML = (data.entries || [])
+      .map((e) => {
+        const cls = e.type === "tree" ? "dir" : "file";
+        const mark = e.type === "tree" ? "/" : "";
+        return `<div class="${cls}">${escapeHtml(e.path)}${mark}</div>`;
+      })
+      .join("");
+  } catch (err) {
+    $("tree-status").textContent = String(err);
   }
-  $("tree-status").textContent = data.truncated ? "已截断（条目过多）" : `${data.entries.length} 项`;
-  $("tree").innerHTML = (data.entries || [])
-    .map((e) => {
-      const cls = e.type === "tree" ? "dir" : "file";
-      const mark = e.type === "tree" ? "/" : "";
-      return `<div class="${cls}">${escapeHtml(e.path)}${mark}</div>`;
-    })
-    .join("");
 }
 
 function escapeHtml(s) {

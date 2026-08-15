@@ -61,12 +61,8 @@ def collect_codex() -> Provider:
     if p.status not in ("fresh", "stale"):
         p.error = state.get("error") or "Codex 额度不可用"
         p.remedy = state.get("remedyCommand") or "运行 codex login"
-        if p.status == "stale":
-            pass
-        else:
-            return p
+        return p
     if p.status == "stale":
-        p.status = "fresh"
         p.error = "数据可能略旧"
     credits = row.get("credits") or {}
     extra_credit = ""
@@ -91,6 +87,7 @@ def collect_codex() -> Provider:
             )
         )
     p.windows = windows
-    if p.status not in ("fresh", "stale"):
-        p.status = "fresh" if windows else "unavailable"
+    if not windows and p.status in ("fresh", "stale"):
+        p.status = "unavailable"
+        p.error = p.error or "quota-axi 没有窗口数据"
     return p

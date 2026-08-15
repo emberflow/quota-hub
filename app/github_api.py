@@ -55,7 +55,9 @@ def list_repos(limit: int = 80) -> dict[str, Any]:
 def repo_tree(full_name: str, ref: str | None = None) -> dict[str, Any]:
     if "/" not in full_name:
         return {"ok": False, "error": "仓库名应为 owner/name", "entries": []}
-    sha = ref or "HEAD"
+    sha = (ref or "HEAD").strip() or "HEAD"
+    if any(ch in sha for ch in ("?", "..", "\n", "\r")):
+        return {"ok": False, "error": "invalid ref", "entries": []}
     try:
         raw = _run(
             [

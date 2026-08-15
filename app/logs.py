@@ -71,43 +71,48 @@ def collect_codex_daily(days: int = 14) -> list[dict[str, Any]]:
     )
     for path in _walk_recent(root, "*.jsonl", days):
         file_day = datetime.fromtimestamp(path.stat().st_mtime).date().isoformat()
+        session_in = session_out = 0
+        saw_total = False
+        last_day = file_day
+        last_model = "codex"
         for obj in _iter_jsonl(path):
             payload = obj.get("payload") if isinstance(obj.get("payload"), dict) else obj
-            typ = str(payload.get("type") or obj.get("type") or "")
-            usage = (
-                payload.get("last_token_usage")
-                or payload.get("token_usage")
-                or payload.get("info")
+            info = payload.get("info") if isinstance(payload.get("info"), dict) else {}
+            total = (
+                payload.get("total_token_usage")
+                or info.get("total_token_usage")
                 or {}
             )
-            if isinstance(usage, dict) and "total_token_usage" in usage:
-                usage = usage.get("total_token_usage") or usage
-            if "token" not in typ.lower() and not (
-                isinstance(usage, dict)
-                and (
-                    "input_tokens" in usage
-                    or "inputTokens" in usage
-                    or "total_tokens" in usage
-                )
-            ):
-                continue
+            turn = (
+                payload.get("last_token_usage")
+                or payload.get("token_usage")
+                or {}
+            )
+            usage = total if isinstance(total, dict) and (
+                total.get("input_tokens") or total.get("inputTokens")
+            ) else turn
             if not isinstance(usage, dict):
                 continue
-            day = _day(payload.get("timestamp") or obj.get("timestamp")) or file_day
-            model = str(
-                payload.get("model")
-                or obj.get("model")
-                or usage.get("model")
-                or "codex"
-            )
             tin = int(usage.get("input_tokens") or usage.get("inputTokens") or 0)
             tout = int(usage.get("output_tokens") or usage.get("outputTokens") or 0)
             if tin == 0 and tout == 0:
                 continue
-            b = buckets[(day, model)]
-            b["in"] += tin
-            b["out"] += tout
-            b["events"] += 1
+            last_day = _day(payload.get("timestamp") or obj.get("timestamp")) or file_day
+            last_model = str(
+                payload.get("model") or obj.get("model") or usage.get("model") or last_model
+            )
+            if usage is total:
+                saw_total = True
+                session_in, session_out = tin, tout
+            elif not saw_total:
+                session_in += tin
+                session_out += tout
+        if session_in == 0 and session_out == 0:
+            continue
+        b = buckets[(last_day, last_model)]
+        b["in"] += session_in
+        b["out"] += session_out
+        b["events"] += 1
     rows = []
     for (day, model), b in sorted(buckets.items()):
         rows.append(

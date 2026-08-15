@@ -3,6 +3,11 @@ __pycache__/
 *.pyc
 data/*.db
 data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+data/_agy*
 _probe_*.py
+scripts/_probe_*.py
+scripts/_*.ps1
 .idea/
 .vscode/

@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>额度看板</title>
+  <link rel="icon" href="/static/quota-hub.ico" type="image/x-icon" />
   <link rel="stylesheet" href="/static/styles.css" />
 </head>
 <body>
@@ -27,7 +28,8 @@
       <div id="cards" class="cards"></div>
       <section class="block">
         <h2>每日用量</h2>
-        <p class="hint">柱状图来自看板快照的剩余百分比差值；Codex/Grok 本地会话 token 作参考，不一定等于官方计费。</p>
+        <div id="chart-switch" class="chart-switch"></div>
+        <p id="chart-caption" class="hint">按厂商查看最近 14 天。日期格式为 月.日，例如 8.14。</p>
         <div id="chart" class="chart"></div>
         <div id="daily-table"></div>
       </section>

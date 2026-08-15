@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -13,7 +14,8 @@ DB_PATH = DATA / "snapshots.db"
 
 def connect() -> sqlite3.Connection:
     DATA.mkdir(parents=True, exist_ok=True)
-    con = sqlite3.connect(DB_PATH)
+    con = sqlite3.connect(DB_PATH, timeout=30)
+    con.execute("PRAGMA journal_mode=WAL")
     con.row_factory = sqlite3.Row
     con.execute(
         """
@@ -107,3 +109,66 @@ def daily_deltas(days: int = 14) -> list[dict[str, Any]]:
             }
         )
     return out
+
+
+PRIMARY_WINDOW = {
+    "cursor": "total",
+    "codex": "weekly",
+    "grok": "weekly",
+    "antigravity": "gemini",
+}
+
+
+def last_remaining_by_day(days: int = 14) -> list[dict[str, Any]]:
+    """Latest remaining% recorded for each provider's primary window per local day."""
+    cutoff = (date.today() - timedelta(days=days + 1)).isoformat()
+    con = connect()
+    try:
+        rows = con.execute(
+            """
+            SELECT local_date, provider, window_id, percent_remaining, taken_at
+            FROM snapshots
+            WHERE local_date >= ?
+            ORDER BY taken_at ASC
+            """,
+            (cutoff,),
+        ).fetchall()
+    finally:
+        con.close()
+    latest: dict[tuple[str, str, str], float] = {}
+    for r in rows:
+        latest[(r["local_date"], r["provider"], r["window_id"])] = r["percent_remaining"]
+    out = []
+    for (d, provider, window_id), rem in sorted(latest.items()):
+        out.append(
+            {
+                "date": d,
+                "provider": provider,
+                "windowId": window_id,
+                "lastRemaining": rem,
+            }
+        )
+    return out
+
+
+def used_from_remaining(days: int = 14) -> dict[str, dict[str, float]]:
+    """provider -> {date: used percent} using previous day's last remaining."""
+    series = last_remaining_by_day(days)
+    by_pw: dict[tuple[str, str], dict[str, float]] = {}
+    for row in series:
+        key = (row["provider"], row["windowId"])
+        by_pw.setdefault(key, {})[row["date"]] = row["lastRemaining"]
+    used: dict[str, dict[str, float]] = {}
+    for (provider, window_id), day_map in by_pw.items():
+        if PRIMARY_WINDOW.get(provider) and window_id != PRIMARY_WINDOW[provider]:
+            continue
+        dates = sorted(day_map)
+        prev = None
+        for d in dates:
+            rem = day_map[d]
+            drop = 0.0
+            if prev is not None and rem <= prev:
+                drop = round(max(0.0, prev - rem), 2)
+            used.setdefault(provider, {})[d] = drop
+            prev = rem
+    return used

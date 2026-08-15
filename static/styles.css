@@ -72,10 +72,14 @@ button:hover { border-color: var(--accent); }
 .use-first.hidden { display: none; }
 .use-first li { margin: 4px 0; }
 .block { margin-top: 28px; }
-.chart { display: flex; align-items: flex-end; gap: 6px; height: 140px; padding: 8px 0 28px; overflow-x: auto; }
-.chart .col { flex: 0 0 28px; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; }
-.chart .col b { width: 18px; background: var(--accent); display: block; }
-.chart .col span { font-size: 10px; color: var(--muted); margin-top: 6px; white-space: nowrap; }
+.chart { display: flex; align-items: flex-end; gap: 8px; height: 180px; padding: 8px 0 8px; overflow-x: auto; }
+.chart .col { flex: 1 0 36px; max-width: 52px; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; }
+.chart .col b { width: 22px; min-height: 2px; background: var(--accent); display: block; }
+.chart .col.empty b { background: var(--bg3); min-height: 2px; }
+.chart .col em { font-style: normal; font-size: 10px; color: var(--text); margin-bottom: 4px; }
+.chart .col span { font-size: 11px; color: var(--muted); margin-top: 6px; white-space: nowrap; }
+.chart-switch { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 10px; }
+.chart-switch button.active { border-color: var(--accent); color: var(--text); }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
 th { color: var(--muted); font-weight: 600; }

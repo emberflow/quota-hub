@@ -6,7 +6,16 @@
 
 ## 启动
 
-在资源管理器双击 [`run.cmd`](run.cmd)，或：
+在资源管理器双击 [`run.cmd`](run.cmd)，或桌面上的 **额度看板** 快捷方式。浏览器会打开 http://127.0.0.1:8787
+
+已在运行时再点一次快捷方式，只会打开浏览器，不会再起一份服务。关闭启动时弹出的窗口会停止看板。
+
+若快捷方式丢了，在项目目录执行：
+
+```bat
+cd /d G:\Projects\quota-hub
+.venv\Scripts\python.exe scripts\make_shortcut.py
+```
 
 ```bat
 cd /d G:\Projects\quota-hub
@@ -17,7 +26,7 @@ py -3 -m venv .venv
 
 浏览器打开 http://127.0.0.1:8787
 
-需要本机已登录：Cursor、`codex login`、grok CLI、Antigravity（或 `npx -y antigravity-usage login`）、`gh auth login`。
+需要本机已登录：Cursor、`codex login`、grok CLI / Antigravity（`agy`）、`gh auth login`。
 
 ## 数据从哪来
 
@@ -26,10 +35,10 @@ py -3 -m venv .venv
 | Cursor | 本机 `state.vscdb` token → cursor.com 账单接口 | 账单周期结束 |
 | Codex | `quota-axi`（读 `~/.codex`） | 5h / 周窗口 |
 | SuperGrok | grok.com `GetGrokCreditsConfig` | 周池 |
-| Antigravity | `antigravity-usage`（IDE 开着或已 login） | 各模型 resetTime |
+| Antigravity | 本机 `agy` 凭据 → Cloud Code `retrieveUserQuotaSummary` | 周池 + 5 小时窗口 |
 | GitHub | `gh repo list` + Trees API | 不是额度 |
 
-每日用量：看板每次刷新把剩余 % 写入 `data/snapshots.db`，按日求差值。Codex / Grok 本地 session 的 token 只作参考。
+每日用量默认最近 14 天柱状图，可在 Cursor / ChatGPT Plus / SuperGrok / Antigravity 之间切换。日期显示为 `8.14`。Cursor 用官方用量事件的当日花费；Codex 用本机会话 token。
 
 ## 终端快查（和网页分开）
 

@@ -21,6 +21,22 @@ def index():
     return FileResponse(STATIC / "index.html")
 
 
+@app.get("/api/health")
+def api_health():
+    return {"ok": True, "app": "quota-hub"}
+
+
+@app.get("/favicon.ico")
+def favicon():
+    ico = STATIC / "quota-hub.ico"
+    if ico.exists():
+        return FileResponse(ico, media_type="image/x-icon")
+    png = STATIC / "quota-hub.png"
+    if png.exists():
+        return FileResponse(png, media_type="image/png")
+    raise HTTPException(404, "no icon")
+
+
 @app.get("/api/quota")
 def api_quota():
     return collect_all()
