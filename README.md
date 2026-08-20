@@ -6,25 +6,27 @@
 
 ## 启动
 
-在资源管理器双击 [`run.cmd`](run.cmd)，或桌面上的 **额度看板** 快捷方式。浏览器会打开 http://127.0.0.1:8787
+运行一次 [`run.cmd`](run.cmd) 完成依赖安装，然后使用桌面上的 **额度看板** 快捷方式。快捷方式使用无控制台的 `pythonw.exe`，浏览器会打开 http://127.0.0.1:8788。
 
-已在运行时再点一次快捷方式，只会打开浏览器，不会再起一份服务。关闭启动时弹出的窗口会停止看板。
+已在运行时再点一次快捷方式，只会打开浏览器，不会再起一份服务。需要停止后台服务时，在页面右上角点击“退出看板”。
+
+启动失败或上游接口异常时，查看 `data\quota-hub.log`；正常访问不会打开 CMD 窗口。
 
 若快捷方式丢了，在项目目录执行：
 
 ```bat
-cd /d G:\Projects\quota-hub
+cd /d D:\Projects\quota-hub
 .venv\Scripts\python.exe scripts\make_shortcut.py
 ```
 
 ```bat
-cd /d G:\Projects\quota-hub
+cd /d D:\Projects\quota-hub
 py -3 -m venv .venv
 .venv\Scripts\python.exe -m pip install -r requirements.txt
-.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8787
+.venv\Scripts\python.exe launch.py
 ```
 
-浏览器打开 http://127.0.0.1:8787
+浏览器打开 http://127.0.0.1:8788
 
 需要本机已登录：Cursor、`codex login`、grok CLI / Antigravity（`agy`）、`gh auth login`。
 

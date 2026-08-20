@@ -41,8 +41,24 @@ def record(windows: list[dict[str, Any]]) -> None:
     taken = now.isoformat()
     con = connect()
     try:
+        cutoff = (date.fromisoformat(local_date) - timedelta(days=90)).isoformat()
+        con.execute("DELETE FROM snapshots WHERE local_date < ?", (cutoff,))
         for w in windows:
             if w.get("percent_remaining") is None:
+                continue
+            provider = w["provider"]
+            window_id = w["window_id"]
+            remaining = float(w["percent_remaining"])
+            previous = con.execute(
+                """
+                SELECT percent_remaining FROM snapshots
+                WHERE local_date = ? AND provider = ? AND window_id = ?
+                ORDER BY taken_at DESC, id DESC LIMIT 1
+                """,
+                (local_date, provider, window_id),
+            ).fetchone()
+            # Repeated polling of an unchanged window adds no daily-use signal.
+            if previous is not None and previous["percent_remaining"] == remaining:
                 continue
             con.execute(
                 """
@@ -52,9 +68,9 @@ def record(windows: list[dict[str, Any]]) -> None:
                 (
                     taken,
                     local_date,
-                    w["provider"],
-                    w["window_id"],
-                    float(w["percent_remaining"]),
+                    provider,
+                    window_id,
+                    remaining,
                 ),
             )
         con.commit()
@@ -66,27 +82,30 @@ def daily_deltas(days: int = 14) -> list[dict[str, Any]]:
     """Earliest vs latest remaining% per local day → consumed that day."""
     con = connect()
     try:
+        cutoff = (date.today() - timedelta(days=max(days - 1, 0))).isoformat()
         rows = con.execute(
             """
+            WITH ranked AS (
+                SELECT local_date, provider, window_id, percent_remaining,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY local_date, provider, window_id
+                           ORDER BY taken_at ASC, id ASC
+                       ) AS first_rank,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY local_date, provider, window_id
+                           ORDER BY taken_at DESC, id DESC
+                       ) AS last_rank
+                FROM snapshots
+                WHERE local_date >= ?
+            )
             SELECT local_date, provider, window_id,
-                   MIN(percent_remaining) AS min_rem,
-                   MAX(percent_remaining) AS max_rem,
-                   (SELECT percent_remaining FROM snapshots s2
-                    WHERE s2.local_date = snapshots.local_date
-                      AND s2.provider = snapshots.provider
-                      AND s2.window_id = snapshots.window_id
-                    ORDER BY taken_at ASC LIMIT 1) AS first_rem,
-                   (SELECT percent_remaining FROM snapshots s3
-                    WHERE s3.local_date = snapshots.local_date
-                      AND s3.provider = snapshots.provider
-                      AND s3.window_id = snapshots.window_id
-                    ORDER BY taken_at DESC LIMIT 1) AS last_rem
-            FROM snapshots
+                   MAX(CASE WHEN first_rank = 1 THEN percent_remaining END) AS first_rem,
+                   MAX(CASE WHEN last_rank = 1 THEN percent_remaining END) AS last_rem
+            FROM ranked
             GROUP BY local_date, provider, window_id
             ORDER BY local_date DESC
-            LIMIT ?
             """,
-            (days * 20,),
+            (cutoff,),
         ).fetchall()
     finally:
         con.close()

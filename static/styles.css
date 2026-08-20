@@ -35,6 +35,8 @@ button {
   font: inherit;
 }
 button:hover { border-color: var(--accent); }
+button.danger:hover { border-color: var(--bad); color: var(--bad); }
+.stopped { padding: 40px 24px; }
 .tabs { display: flex; gap: 0; padding: 0 24px; border-bottom: 1px solid var(--line); }
 .tab {
   background: transparent;

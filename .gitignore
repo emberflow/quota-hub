@@ -5,6 +5,7 @@ data/*.db
 data/*.db-journal
 data/*.db-wal
 data/*.db-shm
+data/*.log
 data/_agy*
 _probe_*.py
 scripts/_probe_*.py

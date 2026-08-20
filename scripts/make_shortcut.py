@@ -4,9 +4,9 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-ROOT = Path(r"G:\Projects\quota-hub")
+ROOT = Path(__file__).resolve().parent.parent
 ICO = ROOT / "static" / "quota-hub.ico"
-PYTHON = ROOT / ".venv" / "Scripts" / "python.exe"
+PYTHON = ROOT / ".venv" / "Scripts" / "pythonw.exe"
 LAUNCH = ROOT / "launch.py"
 
 
@@ -31,6 +31,8 @@ def ps_single(value: str) -> str:
 
 
 def main() -> None:
+    if not PYTHON.exists():
+        raise SystemExit(f"windowless Python not found: {PYTHON}")
     desktop = desktop_dir()
     if not desktop.exists():
         raise SystemExit(f"desktop not found: {desktop}")

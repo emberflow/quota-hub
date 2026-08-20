@@ -464,6 +464,7 @@ def _from_legacy_models(p: Provider, payload: Any) -> Provider:
 
 
 def _run_json(cmd: list[str]) -> Any:
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
     proc = subprocess.run(
         cmd,
         capture_output=True,
@@ -471,6 +472,7 @@ def _run_json(cmd: list[str]) -> Any:
         encoding="utf-8",
         errors="replace",
         timeout=90,
+        creationflags=flags,
     )
     text = (proc.stdout or "").strip()
     start = text.find("{")

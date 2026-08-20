@@ -1,15 +1,24 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
+import time
 
 from .antigravity_api import collect_antigravity
-from .axi import collect_codex
+from .codex_api import collect_codex
 from .charts import build_daily_charts
 from .cursor_api import collect_cursor
 from .grok_api import collect_grok
 from .logs import local_daily
 from .models import Provider
 from .store import daily_deltas, record
+
+
+_CACHE_TTL_SECONDS = 30.0
+_cache_lock = threading.Condition()
+_cache_value: dict | None = None
+_cache_at = 0.0
+_collecting = False
 
 
 def collect_all() -> dict:
@@ -97,3 +106,36 @@ def collect_all() -> dict:
         "dailyLogs": local_daily(14),
         "dailyCharts": build_daily_charts(14),
     }
+
+
+def collect_cached(force: bool = False) -> dict:
+    """Return a recent quota snapshot, with one in-flight collection at a time."""
+    global _cache_at, _cache_value, _collecting
+
+    requested_at = time.monotonic()
+    with _cache_lock:
+        while _collecting:
+            _cache_lock.wait()
+            # A concurrent caller has just refreshed the snapshot.  A forced
+            # refresh should join that request rather than immediately starting
+            # a second expensive provider poll.
+            if _cache_value is not None and _cache_at >= requested_at:
+                return _cache_value
+        if not force and _cache_value is not None and requested_at - _cache_at < _CACHE_TTL_SECONDS:
+            return _cache_value
+        _collecting = True
+
+    try:
+        value = collect_all()
+    except Exception:
+        with _cache_lock:
+            _collecting = False
+            _cache_lock.notify_all()
+        raise
+
+    with _cache_lock:
+        _cache_value = value
+        _cache_at = time.monotonic()
+        _collecting = False
+        _cache_lock.notify_all()
+        return _cache_value

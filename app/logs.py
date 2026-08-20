@@ -144,13 +144,18 @@ def collect_grok_daily(days: int = 14) -> list[dict[str, Any]]:
         day = datetime.fromtimestamp(path.stat().st_mtime).date().isoformat()
         tokens = 0
         if path.suffix == ".jsonl" or path.name == "updates.jsonl":
+            # These files contain cumulative snapshots.  Summing every line
+            # counts the same session repeatedly; keep the latest/highest
+            # snapshot for each file instead.
+            file_tokens = 0
             for obj in _iter_jsonl(path):
-                tokens += int(
+                file_tokens = max(file_tokens, int(
                     obj.get("totalTokens")
                     or obj.get("total_tokens")
                     or (obj.get("usage") or {}).get("totalTokens")
                     or 0
-                )
+                ))
+            tokens = file_tokens
         else:
             try:
                 obj = json.loads(path.read_text(encoding="utf-8", errors="ignore"))

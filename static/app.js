@@ -10,7 +10,29 @@ document.querySelectorAll(".tab").forEach((btn) => {
   });
 });
 
-$("refresh").addEventListener("click", loadQuota);
+$("refresh").addEventListener("click", () => loadQuota(true));
+$("shutdown").addEventListener("click", shutdown);
+
+async function shutdown() {
+  if (!window.confirm("退出看板后，后台服务会停止。确定退出吗？")) return;
+  const button = $("shutdown");
+  button.disabled = true;
+  button.textContent = "正在退出…";
+  try {
+    const res = await fetch("/api/shutdown", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    document.body.innerHTML =
+      '<main class="stopped"><h1>看板已退出</h1><p class="muted">后台服务已停止，可以关闭此页面。</p></main>';
+  } catch (err) {
+    button.disabled = false;
+    button.textContent = "退出看板";
+    window.alert("退出失败：" + String(err));
+  }
+}
 
 function barClass(left) {
   if (left == null) return "";
@@ -168,10 +190,10 @@ let selectedChart = "cursor";
 let lastSnapshots = [];
 let lastLogs = [];
 
-async function loadQuota() {
+async function loadQuota(force = false) {
   $("updated").textContent = "读取中…";
   try {
-    const res = await fetch("/api/quota");
+    const res = await fetch(force ? "/api/quota?force=1" : "/api/quota");
     if (!res.ok) throw new Error("HTTP " + res.status);
     const data = await res.json();
     $("cards").innerHTML = (data.providers || []).map(renderProvider).join("");

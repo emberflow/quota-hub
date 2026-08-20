@@ -15,6 +15,7 @@ from .timefmt import annotate_window, parse_ts
 
 
 CONSUMER_URL = "https://grok.com/grok_api_v2.GrokBuildBilling/GetGrokCreditsConfig"
+_TRUSTED_ISSUER = "https://auth.x.ai"
 
 
 def _auth_path() -> Path:
@@ -54,13 +55,21 @@ def _refresh_access_token(entry: dict) -> Optional[str]:
     """In-memory OIDC refresh. Never writes ~/.grok/auth.json."""
     refresh = entry.get("refresh_token")
     client_id = entry.get("oidc_client_id")
-    issuer = str(entry.get("oidc_issuer") or "https://auth.x.ai").rstrip("/")
+    issuer = str(entry.get("oidc_issuer") or _TRUSTED_ISSUER).rstrip("/")
+    parsed_issuer = urllib.parse.urlsplit(issuer)
+    if (
+        parsed_issuer.scheme != "https"
+        or parsed_issuer.netloc.lower() != "auth.x.ai"
+        or parsed_issuer.path not in ("", "/")
+        or parsed_issuer.query
+        or parsed_issuer.fragment
+    ):
+        return None
     if not refresh or not client_id:
         return None
     urls = [
-        issuer + "/oauth/token",
-        issuer + "/oauth2/token",
-        "https://auth.x.ai/oauth/token",
+        _TRUSTED_ISSUER + "/oauth/token",
+        _TRUSTED_ISSUER + "/oauth2/token",
     ]
     form = urllib.parse.urlencode(
         {
@@ -268,7 +277,9 @@ def collect_grok() -> Provider:
 
 
 def _ok(p: Provider, parsed: dict) -> Provider:
-    used = float(parsed["percent_used"] or 0)
+    # The billing response describes one shared pool.  Do not accumulate this
+    # cumulative percentage across polls or product surfaces.
+    used = min(100.0, max(0.0, float(parsed["percent_used"] or 0)))
     left = round(max(0.0, 100.0 - used), 2)
     extra = annotate_window(left, parsed["end"])
     p.status = "fresh"
